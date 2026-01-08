@@ -1,70 +1,336 @@
-# Getting Started with Create React App
+# Cloud File Storage Application
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A secure, serverless file storage application built with React and AWS services. Features role-based access control (RBAC) with Admin, User, and Viewer roles.
 
-## Available Scripts
+## 🏗️ Architecture
 
-In the project directory, you can run:
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│                 │     │                 │     │                 │
+│  React Client   │────▶│   API Gateway   │────▶│  Lambda Functions│
+│  (AWS Amplify)  │     │  (REST API)     │     │  (Node.js 20.x) │
+│                 │     │                 │     │                 │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+        │                       │                       │
+        │                       │                       │
+        ▼                       ▼                       ▼
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│                 │     │                 │     │                 │
+│  Amazon Cognito │     │   CloudWatch    │     │   Amazon S3     │
+│  (User Pool)    │     │   (Logging)     │     │   (File Storage)│
+│                 │     │                 │     │                 │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+                                                        │
+                                                        ▼
+                                                ┌─────────────────┐
+                                                │                 │
+                                                │   DynamoDB      │
+                                                │  (Metadata)     │
+                                                │                 │
+                                                └─────────────────┘
+```
 
-### `npm start`
+## 🚀 Features
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+- **Secure Authentication**: AWS Cognito user authentication with JWT tokens
+- **Role-Based Access Control (RBAC)**:
+  - **Admin**: Can upload, download, and delete files
+  - **User**: Can upload and download files
+  - **Viewer**: Can only download/view files
+- **Serverless Backend**: AWS Lambda functions for all operations
+- **Scalable Storage**: Amazon S3 for file storage
+- **Metadata Management**: DynamoDB for file metadata
+- **CORS Support**: Properly configured for cross-origin requests
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+## 📁 Project Structure
 
-### `npm test`
+```
+cloud-file-storage/
+├── public/                 # Static assets
+│   ├── index.html
+│   ├── manifest.json
+│   └── robots.txt
+├── src/                    # React application source
+│   ├── App.js              # Main application component
+│   ├── App.css             # Application styles
+│   ├── index.js            # Entry point
+│   └── setupProxy.js       # Development proxy configuration
+├── lambda/                 # AWS Lambda function code
+│   ├── ListFunction.js     # GET /files - List all files
+│   ├── UploadFunction.js   # POST /files - Upload a file
+│   ├── DownloadFunction.js # POST /download - Get download URL
+│   └── DeleteFunction.js   # POST /delete - Delete a file (Admin only)
+├── package.json
+└── README.md
+```
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+## 🛠️ AWS Services Setup
 
-### `npm run build`
+### 1. Amazon Cognito (User Pool)
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+1. Go to **AWS Console → Amazon Cognito → Create User Pool**
+2. Configure sign-in options: Email
+3. Configure security requirements as needed
+4. Create an App Client (no client secret)
+5. Add a custom attribute: \`custom:role\` (String) - Values: \`admin\`, \`user\`, \`viewer\`
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+**Note down:**
+- User Pool ID (e.g., \`us-east-1_XXXXXXXXX\`)
+- App Client ID (e.g., \`xxxxxxxxxxxxxxxxxxxxxxxxxx\`)
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+### 2. Amazon S3 (File Storage)
 
-### `npm run eject`
+1. Go to **AWS Console → S3 → Create Bucket**
+2. Bucket name: \`your-unique-bucket-name\`
+3. Region: Same as your other services (e.g., \`us-east-1\`)
+4. Block all public access: **Enabled** (files accessed via presigned URLs)
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+### 3. Amazon DynamoDB (Metadata)
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+1. Go to **AWS Console → DynamoDB → Create Table**
+2. Table name: \`FileMetadata\`
+3. Partition key: \`fileId\` (String)
+4. Use default settings
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+### 4. AWS Lambda Functions
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+Create 4 Lambda functions with **Node.js 20.x** runtime:
 
-## Learn More
+| Function Name | Description | Trigger |
+|--------------|-------------|---------|
+| ListFunction | Lists all files | GET /files |
+| UploadFunction | Uploads a file | POST /files |
+| DownloadFunction | Generates download URL | POST /download |
+| DeleteFunction | Deletes a file (Admin only) | POST /delete |
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+**For each function:**
+1. Copy the corresponding code from the \`lambda/\` folder
+2. Set execution role with permissions for S3 and DynamoDB
+3. Update the hardcoded values in the code:
+   - \`BUCKET_NAME\`: Your S3 bucket name
+   - \`TABLE_NAME\`: Your DynamoDB table name
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+**Required IAM Permissions:**
+\`\`\`json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject"
+      ],
+      "Resource": "arn:aws:s3:::your-bucket-name/*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:Scan",
+        "dynamodb:GetItem",
+        "dynamodb:PutItem",
+        "dynamodb:DeleteItem"
+      ],
+      "Resource": "arn:aws:dynamodb:*:*:table/FileMetadata"
+    }
+  ]
+}
+\`\`\`
 
-### Code Splitting
+### 5. Amazon API Gateway
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+1. Go to **AWS Console → API Gateway → Create REST API**
+2. Create resources and methods:
 
-### Analyzing the Bundle Size
+\`\`\`
+/files
+  ├── GET     → ListFunction (Authorization: CognitoAuth)
+  ├── POST    → UploadFunction (Authorization: CognitoAuth)
+  └── OPTIONS → Mock (for CORS)
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+/download
+  ├── POST    → DownloadFunction (Authorization: CognitoAuth)
+  └── OPTIONS → Mock (for CORS)
 
-### Making a Progressive Web App
+/delete
+  ├── POST    → DeleteFunction (Authorization: CognitoAuth)
+  └── OPTIONS → Mock (for CORS)
+\`\`\`
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+3. Create a **Cognito Authorizer**:
+   - Name: \`CognitoAuth\`
+   - Type: Cognito
+   - User Pool: Your Cognito User Pool
+   - Token Source: \`Authorization\`
 
-### Advanced Configuration
+4. Enable **CORS** for all resources with these headers:
+   - \`Access-Control-Allow-Origin\`: \`*\`
+   - \`Access-Control-Allow-Headers\`: \`Content-Type,Authorization,file-name\`
+   - \`Access-Control-Allow-Methods\`: \`GET,POST,OPTIONS,DELETE\`
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+5. **Deploy API** to a stage (e.g., \`prod\`)
 
-### Deployment
+## 💻 Local Development Setup
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+### Prerequisites
 
-### `npm run build` fails to minify
+- Node.js 18+ and npm
+- AWS Account with the services configured above
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+### Installation
+
+1. **Clone the repository:**
+   \`\`\`bash
+   git clone https://github.com/ashreyanair/cloud-file-storage.git
+   cd cloud-file-storage
+   \`\`\`
+
+2. **Install dependencies:**
+   \`\`\`bash
+   npm install
+   \`\`\`
+
+3. **Configure the application:**
+   
+   Update \`src/App.js\` with your AWS credentials:
+   \`\`\`javascript
+   const USER_POOL_ID = 'your-user-pool-id';
+   const CLIENT_ID = 'your-app-client-id';
+   \`\`\`
+
+4. **Update proxy configuration:**
+   
+   Update \`src/setupProxy.js\` with your API Gateway URL:
+   \`\`\`javascript
+   target: 'https://your-api-id.execute-api.us-east-1.amazonaws.com',
+   \`\`\`
+
+5. **Start the development server:**
+   \`\`\`bash
+   npm start
+   \`\`\`
+
+6. Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+## 🧪 Testing
+
+### Create Test Users
+
+1. Go to **AWS Console → Cognito → User Pool → Users**
+2. Create users with different roles:
+   - Admin user: Set \`custom:role\` = \`admin\`
+   - Regular user: Set \`custom:role\` = \`user\`
+   - Viewer: Set \`custom:role\` = \`viewer\`
+
+### Test the Application
+
+1. Sign in with a test user
+2. Based on the role:
+   - **Admin**: Upload, download, delete files
+   - **User**: Upload, download files
+   - **Viewer**: Download/view files only
+
+## 🚀 Deployment
+
+### Build for Production
+
+\`\`\`bash
+npm run build
+\`\`\`
+
+### Deploy to AWS Amplify Hosting
+
+1. Go to **AWS Console → AWS Amplify**
+2. Connect your GitHub repository
+3. Configure build settings
+4. Deploy
+
+## �� Troubleshooting
+
+### CORS Errors
+- Ensure API Gateway has CORS enabled on all methods
+- Check that OPTIONS methods return proper headers
+- Verify the proxy configuration in \`setupProxy.js\`
+
+### 403 Forbidden
+- Check that the Cognito authorizer is properly configured
+- Verify the User Pool ID and Client ID match
+- Ensure the token is being sent in the Authorization header
+
+### 502 Bad Gateway
+- Check Lambda function logs in CloudWatch
+- Verify Lambda has correct IAM permissions
+- Ensure DynamoDB table and S3 bucket exist
+
+### Token Expired
+- Sign out and sign back in to get a fresh token
+- Tokens expire after 60 minutes by default
+
+## 📝 API Reference
+
+### List Files
+\`\`\`
+GET /files
+Authorization: <id_token>
+
+Response: [
+  {
+    "fileId": "uuid",
+    "fileName": "document.pdf",
+    "uploadedBy": "user@example.com",
+    "uploadedAt": "2024-01-01T00:00:00.000Z",
+    "size": 1024
+  }
+]
+\`\`\`
+
+### Upload File
+\`\`\`
+POST /files
+Authorization: <id_token>
+Content-Type: <file_mime_type>
+file-name: <filename>
+Body: <binary_file_data>
+
+Response: {
+  "message": "File uploaded successfully",
+  "fileId": "uuid",
+  "fileName": "document.pdf"
+}
+\`\`\`
+
+### Download File
+\`\`\`
+POST /download
+Authorization: <id_token>
+Content-Type: application/json
+Body: { "fileName": "document.pdf" }
+
+Response: {
+  "downloadUrl": "https://s3.amazonaws.com/...",
+  "fileName": "document.pdf",
+  "contentType": "application/pdf"
+}
+\`\`\`
+
+### Delete File (Admin Only)
+\`\`\`
+POST /delete
+Authorization: <id_token>
+Content-Type: application/json
+Body: { "fileId": "uuid" }
+
+Response: {
+  "message": "File deleted successfully",
+  "fileId": "uuid"
+}
+\`\`\`
+
+## 👥 Authors
+
+- **Shreya Nair** - [GitHub](https://github.com/ashreyanair)
+
+## 📄 License
+
+This project is licensed under the MIT License.
